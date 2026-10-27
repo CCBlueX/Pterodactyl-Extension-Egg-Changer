@@ -46,9 +46,15 @@ final readonly class Panel
         Activity::event('server:reinstall')->subject($server)->log();
     }
 
+    /** Read from the database, as another extension may have moved the server since it was loaded. */
     public function primaryPort(Server $server): int
     {
-        return (int) $server->allocation->port;
+        return (int) Allocation::query()->whereKey($server->allocation_id)->value('port');
+    }
+
+    public function address(Server $server): string
+    {
+        return Allocation::query()->findOrFail($server->allocation_id)->toString();
     }
 
     /**
@@ -59,7 +65,7 @@ final readonly class Panel
     public function freeAllocationIn(Server $server, array $ranges): ?Allocation
     {
         return Allocation::query()->unassigned()->onNodes([$server->node_id])->onPorts([], $ranges)
-            ->orderByRaw('ip = ? desc', [$server->allocation->ip])
+            ->orderByRaw('ip = ? desc', [Allocation::query()->whereKey($server->allocation_id)->value('ip')])
             ->orderBy('port')
             ->first();
     }

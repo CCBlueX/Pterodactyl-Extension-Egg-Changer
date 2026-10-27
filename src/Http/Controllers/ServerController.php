@@ -53,27 +53,30 @@ final class ServerController
         abort_if($data['reinstall'] && ! $request->user()?->can('settings.reinstall', $server), 403, 'You do not have permission to reinstall this server.');
 
         $ranges = EggPorts::rangesFor($egg->id);
-        $allocation = null;
+        $before = $this->panel->address($server);
 
         if (! Ports::allows($ranges, $this->panel->primaryPort($server))) {
-            $allocation = $this->panel->freeAllocationIn($server, $ranges);
-            abort_if($allocation === null, 409, sprintf('No port in %s is free on this node. Ask an administrator.', Ports::format($ranges)));
+            abort_if($this->panel->freeAllocationIn($server, $ranges) === null, 409, sprintf('No port in %s is free on this node. Ask an administrator.', Ports::format($ranges)));
         }
 
         $server = $this->panel->changeEgg($server, $egg, (bool) $data['keep_variables']);
 
-        if ($allocation !== null) {
-            $server = $this->panel->movePrimary($server, $allocation);
+        // Another extension may have moved the server during the egg change already.
+        if (! Ports::allows($ranges, $this->panel->primaryPort($server))) {
+            $allocation = $this->panel->freeAllocationIn($server, $ranges);
+            $server = $allocation === null ? $server : $this->panel->movePrimary($server, $allocation);
         }
 
         if ($data['reinstall']) {
             $this->panel->reinstall($server);
         }
 
+        $after = $this->panel->address($server);
+
         return new JsonResponse([
             'current' => ['id' => $egg->id, 'name' => $egg->name],
             'reinstalling' => (bool) $data['reinstall'],
-            'address' => $allocation?->toString(),
+            'address' => $after !== $before ? $after : null,
         ]);
     }
 
