@@ -26,6 +26,7 @@ interface Draft {
     name: string;
     description: string;
     eggs: number[];
+    port_ranges: Record<number, string>;
 }
 
 export default function GroupsScreen() {
@@ -34,6 +35,7 @@ export default function GroupsScreen() {
     const [draft, setDraft] = useState<Draft | null>(null);
     const [removing, setRemoving] = useState<Group | null>(null);
     const refresh = () => queryClient.invalidateQueries({ queryKey: groupsKey });
+    const ranges: Record<number, string> = Object.fromEntries((groups.data?.eggs ?? []).map((egg) => [egg.id, egg.port_range ?? '']));
 
     const save = useMutation({
         mutationFn: () => saveGroup(draft!),
@@ -62,7 +64,7 @@ export default function GroupsScreen() {
                         Users can switch a server to any egg that shares a group with its current egg, from the server's Startup page.
                     </p>
                 </div>
-                <Button onClick={() => setDraft({ name: '', description: '', eggs: [] })}>New group</Button>
+                <Button onClick={() => setDraft({ name: '', description: '', eggs: [], port_ranges: ranges })}>New group</Button>
             </header>
 
             {groups.isLoading ? (
@@ -88,11 +90,12 @@ export default function GroupsScreen() {
                                 {group.eggs.map((egg) => (
                                     <span key={egg.id} className='egc:rounded-full egc:bg-muted egc:px-2 egc:py-0.5 egc:text-xs egc:text-foreground'>
                                         {egg.name}
+                                        {egg.port_range && <span className='egc:text-muted-foreground'> · {egg.port_range}</span>}
                                     </span>
                                 ))}
                             </div>
                             <div className='egc:mt-4 egc:flex egc:justify-end egc:gap-2'>
-                                <Button.Text size='small' onClick={() => setDraft({ id: group.id, name: group.name, description: group.description ?? '', eggs: group.eggs.map((egg) => egg.id) })}>
+                                <Button.Text size='small' onClick={() => setDraft({ id: group.id, name: group.name, description: group.description ?? '', eggs: group.eggs.map((egg) => egg.id), port_ranges: ranges })}>
                                     Edit
                                 </Button.Text>
                                 <Button.Danger size='small' onClick={() => setRemoving(group)}>
@@ -154,6 +157,30 @@ function GroupDialog({ draft, eggs, pending, onChange, onSave }: DialogProps) {
                             options={eggs.map((egg) => ({ value: egg.id, label: egg.name }))}
                         />
                     </div>
+                    {draft.eggs.length > 0 && (
+                        <div className='egc:grid egc:gap-2'>
+                            <Label>Port ranges</Label>
+                            {draft.eggs.map((id) => {
+                                const name = eggs.find((egg) => egg.id === id)?.name ?? `Egg ${id}`;
+
+                                return (
+                                    <div key={id} className='egc:grid egc:items-center egc:gap-2 egc:sm:grid-cols-[minmax(0,1fr)_12rem]'>
+                                        <span className='egc:truncate egc:text-sm egc:text-foreground'>{name}</span>
+                                        <Input
+                                            aria-label={`Port range for ${name}`}
+                                            placeholder='Any port'
+                                            maxLength={191}
+                                            value={draft.port_ranges[id] ?? ''}
+                                            onChange={(event) => onChange({ ...draft, port_ranges: { ...draft.port_ranges, [id]: event.currentTarget.value } })}
+                                        />
+                                    </div>
+                                );
+                            })}
+                            <p className='egc:text-xs egc:text-muted-foreground'>
+                                A server switching to an egg with a range, such as 5520-5600, moves to a free port in it unless its port already fits. Ranges belong to the egg, in every group.
+                            </p>
+                        </div>
+                    )}
                 </div>
             )}
             <Dialog.Footer>

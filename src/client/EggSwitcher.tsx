@@ -30,7 +30,9 @@ export default function EggSwitcher({ data }: { data: StartupFormSlotData }) {
     const change = useMutation({
         mutationFn: () => changeEgg(identifier, { egg: egg!, keep_variables: keepVariables, reinstall: reinstall && !!options.data?.can_reinstall }),
         onSuccess: async (result) => {
-            toast.success(result.reinstalling ? `Switched to ${result.current.name}. The server is reinstalling.` : `Switched to ${result.current.name}.`);
+            toast.success(
+                [`Switched to ${result.current.name}.`, result.address && `The server now runs on ${result.address}.`, result.reinstalling && 'The server is reinstalling.'].filter(Boolean).join(' ')
+            );
             setConfirming(false);
             setEgg(null);
             await Promise.all([data.refresh(), invalidateServerData(uuid, ['server', 'startup']), queryClient.invalidateQueries({ queryKey: optionsKey(identifier) })]);
@@ -82,6 +84,7 @@ export default function EggSwitcher({ data }: { data: StartupFormSlotData }) {
                 onConfirmed={() => change.mutate()}
             >
                 The startup command and Docker image are reset to the defaults of {target?.name}.
+                {target?.port_range && ` The server moves to a free port in ${target.port_range}.`}
                 {reinstall && options.data.can_reinstall && ' The install script of the new egg runs afterwards and can overwrite files.'}
             </Dialog.Confirm>
         </TitledGreyBox>

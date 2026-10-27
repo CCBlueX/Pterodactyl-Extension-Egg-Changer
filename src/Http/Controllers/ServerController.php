@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace EggChanger\Http\Controllers;
 
+use EggChanger\Models\EggPorts;
 use EggChanger\Models\Group;
 use EggChanger\Panel\Panel;
+use EggChanger\Support\Ports;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Collection;
@@ -20,12 +22,16 @@ final class ServerController
     {
         $this->authorize($request, $server);
 
+        $ranges = EggPorts::byEgg();
+        $port = $this->panel->primaryPort($server);
+
         return new JsonResponse([
             'current' => ['id' => $server->egg->id, 'name' => $server->egg->name],
             'eggs' => $this->choices($server)->map(static fn (Egg $egg): array => [
                 'id' => $egg->id,
                 'name' => $egg->name,
                 'description' => $egg->description,
+                'port_range' => ! Ports::allows(Ports::ranges($ranges[$egg->id] ?? '') ?? [], $port) ? $ranges[$egg->id] : null,
             ])->values(),
             'can_reinstall' => (bool) $request->user()?->can('settings.reinstall', $server),
         ]);
@@ -46,13 +52,29 @@ final class ServerController
         abort_unless($this->panel->isStopped($server), 409, 'Stop the server before changing its egg.');
         abort_if($data['reinstall'] && ! $request->user()?->can('settings.reinstall', $server), 403, 'You do not have permission to reinstall this server.');
 
+        $ranges = EggPorts::rangesFor($egg->id);
+        $allocation = null;
+
+        if (! Ports::allows($ranges, $this->panel->primaryPort($server))) {
+            $allocation = $this->panel->freeAllocationIn($server, $ranges);
+            abort_if($allocation === null, 409, sprintf('No port in %s is free on this node. Ask an administrator.', Ports::format($ranges)));
+        }
+
         $server = $this->panel->changeEgg($server, $egg, (bool) $data['keep_variables']);
+
+        if ($allocation !== null) {
+            $server = $this->panel->movePrimary($server, $allocation);
+        }
 
         if ($data['reinstall']) {
             $this->panel->reinstall($server);
         }
 
-        return new JsonResponse(['current' => ['id' => $egg->id, 'name' => $egg->name], 'reinstalling' => (bool) $data['reinstall']]);
+        return new JsonResponse([
+            'current' => ['id' => $egg->id, 'name' => $egg->name],
+            'reinstalling' => (bool) $data['reinstall'],
+            'address' => $allocation?->toString(),
+        ]);
     }
 
     /** @return Collection<int, Egg> */
