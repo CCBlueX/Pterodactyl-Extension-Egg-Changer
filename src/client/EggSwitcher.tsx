@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import {
+    Alert,
     Button,
     Checkbox,
     Dialog,
@@ -39,6 +40,21 @@ export default function EggSwitcher({ data }: { data: StartupFormSlotData }) {
         },
         onError: (error) => toast.error(httpErrorToHuman(error)),
     });
+
+    if (canChange && options.isError) {
+        return (
+            <TitledGreyBox title='Egg' className='egc:mb-8'>
+                <Alert type='warning'>
+                    <div className='egc:flex egc:items-center egc:justify-between egc:gap-3'>
+                        <span>{httpErrorToHuman(options.error)}</span>
+                        <Button.Text size='xsmall' onClick={() => options.refetch()}>
+                            Retry
+                        </Button.Text>
+                    </div>
+                </Alert>
+            </TitledGreyBox>
+        );
+    }
 
     if (!canChange || !options.data || options.data.eggs.length === 0) {
         return null;

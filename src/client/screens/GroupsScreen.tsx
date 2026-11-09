@@ -13,6 +13,7 @@ import {
     NamedIcon,
     PageContentBlock,
     Select,
+    ServerError,
     Spinner,
     TextArea,
     TitledGreyBox,
@@ -70,9 +71,9 @@ export default function GroupsScreen() {
             {groups.isLoading ? (
                 <Spinner centered size={Spinner.Size.LARGE} />
             ) : groups.isError ? (
-                <p className='egc:text-sm egc:text-destructive'>{httpErrorToHuman(groups.error)}</p>
+                <ServerError title='Could not load egg groups' message={httpErrorToHuman(groups.error)} onRetry={() => groups.refetch()} />
             ) : groups.data!.groups.length === 0 ? (
-                <Empty className='egc:border'>
+                <Empty className='egc:rounded-sm egc:border egc:border-border egc:bg-card'>
                     <EmptyHeader>
                         <EmptyMedia variant='icon'>
                             <NamedIcon name='egg' />
